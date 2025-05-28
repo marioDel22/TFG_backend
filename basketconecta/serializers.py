@@ -1,13 +1,35 @@
 from rest_framework import serializers
 from .models import Jugador, Equipo, AnuncioJugador, AnuncioEquipo, Chat, Mensaje, Invitacion, EventoCalendario, Notificacion, geocodificar_direccion
 
+
+class JugadorMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Jugador
+        fields = ['id', 'nombre', 'posicion']
+
+class AnuncioJugadorSerializer(serializers.ModelSerializer):
+    jugador = JugadorMiniSerializer(read_only=True)
+    jugador_id = serializers.PrimaryKeyRelatedField(
+        queryset=Jugador.objects.all(), source='jugador', write_only=True
+    )
+
+    class Meta:
+        model = AnuncioJugador
+        fields = [
+            'id', 'jugador', 'jugador_id',
+            'disponibilidad_dia', 'disponibilidad_horaria',
+            'descripcion', 'sexo', 'creado'
+        ]
+        read_only_fields = ['id', 'jugador', 'creado']
 class JugadorSerializer(serializers.ModelSerializer):
+
+    anuncio = AnuncioJugadorSerializer(read_only=True)
     class Meta:
         model = Jugador
         fields = [
             'id', 'user', 'nombre', 'edad', 'altura', 'posicion',
             'direccion', 'nivel', 'descripcion', 'correo',
-            'sexo', 'foto_jugador', 'latitud', 'longitud'
+            'sexo', 'foto_jugador', 'latitud', 'longitud','anuncio'
         ]
         read_only_fields = ['user', 'id', 'latitud', 'longitud']
 
@@ -33,37 +55,7 @@ class JugadorMiniSerializer(serializers.ModelSerializer):
         fields = ['id', 'nombre', 'posicion']
 
 
-class EquipoSerializer(serializers.ModelSerializer):
-    jugadores = JugadorMiniSerializer(many=True, read_only=True)
-    class Meta:
-        model = Equipo
-        fields = [
-            'id', 'creador', 'nombre', 'categoria',
-            'primera_camiseta', 'primera_pantalon',
-            'segunda_camiseta', 'segunda_pantalon',
-            'descripcion', 'sexo', 'jugadores'
-        ]
-        read_only_fields = ['creador', 'id']
-
-
-class AnuncioJugadorSerializer(serializers.ModelSerializer):
-    jugador = JugadorSerializer(read_only=True)
-    jugador_id = serializers.PrimaryKeyRelatedField(
-        queryset=Jugador.objects.all(), source='jugador', write_only=True
-    )
-
-    class Meta:
-        model = AnuncioJugador
-        fields = [
-            'id', 'jugador', 'jugador_id',
-            'disponibilidad_dia', 'disponibilidad_horaria',
-            'descripcion', 'sexo', 'creado'
-        ]
-        read_only_fields = ['id', 'jugador', 'creado']
-
-
 class AnuncioEquipoSerializer(serializers.ModelSerializer):
-    equipo = EquipoSerializer(read_only=True)
     equipo_id = serializers.PrimaryKeyRelatedField(
         queryset=Equipo.objects.all(), source='equipo', write_only=True
     )
@@ -91,6 +83,25 @@ class AnuncioEquipoSerializer(serializers.ModelSerializer):
             if lat is None or lon is None:
                 raise serializers.ValidationError("La dirección del entrenamiento no es válida.")
         return value
+
+
+
+class EquipoSerializer(serializers.ModelSerializer):
+    jugadores = JugadorMiniSerializer(many=True, read_only=True)
+    anuncio = AnuncioEquipoSerializer(read_only=True)
+    class Meta:
+        model = Equipo
+        fields = [
+            'id', 'creador', 'nombre', 'categoria',
+            'primera_camiseta', 'primera_pantalon',
+            'segunda_camiseta', 'segunda_pantalon',
+            'anuncio',
+            'descripcion', 'sexo', 'jugadores'
+        ]
+        read_only_fields = ['creador', 'id']
+
+
+
 
 
 class MensajeSerializer(serializers.ModelSerializer):
