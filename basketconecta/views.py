@@ -21,6 +21,10 @@ from .serializers import EquipoSerializer, AnuncioEquipoSerializer, AnuncioJugad
 
 class EsDueñoDelAnuncioJugador(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
+        # Permitir lectura (GET, HEAD, OPTIONS) a todos los autenticados
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        # Solo permitir edición/eliminación al dueño
         return obj.jugador.user == request.user
 
 class AnuncioJugadorViewSet(viewsets.ModelViewSet):
