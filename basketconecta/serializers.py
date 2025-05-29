@@ -5,7 +5,7 @@ from .models import Jugador, Equipo, AnuncioJugador, AnuncioEquipo, Chat, Mensaj
 class JugadorMiniSerializer(serializers.ModelSerializer):
     class Meta:
         model = Jugador
-        fields = ['id', 'nombre', 'posicion']
+        fields = ['id', 'nombre', 'posicion','nivel','altura','descripcion']
 
 class AnuncioJugadorSerializer(serializers.ModelSerializer):
     jugador = JugadorMiniSerializer(read_only=True)
@@ -65,10 +65,12 @@ class AnuncioEquipoSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'equipo', 'equipo_id',
             'dia_partido', 'horario_partido', 'direccion_partido',
+            'latitud_partido', 'longitud_partido',
             'dia_entrenamiento', 'horario_entrenamiento', 'direccion_entrenamiento',
+            'latitud_entrenamiento', 'longitud_entrenamiento',
             'descripcion', 'creado'
         ]
-        read_only_fields = ['id', 'equipo', 'creado']
+        read_only_fields = ['id', 'equipo', 'creado', 'latitud_partido', 'longitud_partido', 'latitud_entrenamiento', 'longitud_entrenamiento']
 
 
     def validate_direccion_partido(self, value):

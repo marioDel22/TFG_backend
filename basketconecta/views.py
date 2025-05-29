@@ -49,9 +49,13 @@ class AnuncioJugadorViewSet(viewsets.ModelViewSet):
 
 class EsCreadorDelEquipo(permissions.BasePermission):
     """
-    Solo permite modificar/eliminar equipos creados por el usuario.
+    Permite lectura a todos los equipos pero solo modificación/eliminación a equipos creados por el usuario.
     """
     def has_object_permission(self, request, view, obj):
+        # Permitir lectura (GET, HEAD, OPTIONS) a todos
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        # Solo permitir escritura al creador
         return obj.creador == request.user
 
 class EquipoViewSet(viewsets.ModelViewSet):
@@ -59,7 +63,7 @@ class EquipoViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, EsCreadorDelEquipo]
 
     def get_queryset(self):
-        return Equipo.objects.filter(creador=self.request.user)
+        return Equipo.objects.all()
 
     def perform_create(self, serializer):
         serializer.save(creador=self.request.user)
@@ -108,11 +112,37 @@ class AnuncioEquipoViewSet(viewsets.ModelViewSet):
         'dia_entrenamiento': ['exact'],
         'horario_entrenamiento': ['exact'],
         'equipo__sexo': ['exact'],
-        'equipo__categoria': ['exact'],  # o 'nivel' si defines uno
+        'equipo__categoria': ['exact'],
     }
 
     def get_queryset(self):
-        return AnuncioEquipo.objects.all()
+        queryset = AnuncioEquipo.objects.all()
+        lat = self.request.query_params.get('latitud')
+        lon = self.request.query_params.get('longitud')
+        distancia = self.request.query_params.get('distancia')
+        print(f"Parámetros recibidos: lat={lat}, lon={lon}, distancia={distancia}")
+        if lat and lon and distancia:
+            from math import radians, cos, sin, asin, sqrt
+            lat = float(lat)
+            lon = float(lon)
+            distancia = float(distancia)
+
+            def haversine(lat1, lon1, lat2, lon2):
+                lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+                dlon = lon2 - lon1
+                dlat = lat2 - lat1
+                a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+                c = 2 * asin(sqrt(a))
+                r = 6371
+                return c * r
+
+            ids = [
+                anuncio.id for anuncio in queryset
+                if anuncio.latitud_partido and anuncio.longitud_partido and
+                haversine(lat, lon, anuncio.latitud_partido, anuncio.longitud_partido) <= distancia
+            ]
+            queryset = queryset.filter(id__in=ids)
+        return queryset
 
     def perform_create(self, serializer):
         equipo = serializer.validated_data['equipo']
@@ -319,22 +349,70 @@ class AnunciosCercanosView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        distancia_max_km = float(request.query_params.get('distancia', 5))  # valor por defecto: 5 km
-        jugador = get_object_or_404(Jugador, user=request.user)
+        try:
+            distancia_max_km = float(request.query_params.get('distancia', 5))  # valor por defecto: 5 km
+            jugador = get_object_or_404(Jugador, user=request.user)
 
-        if not jugador.latitud or not jugador.longitud:
-            return Response({"detail": "Tu perfil de jugador no tiene coordenadas registradas."}, status=400)
+            # Información de depuración del jugador
+            debug_info = {
+                "jugador_id": jugador.id,
+                "jugador_nombre": jugador.nombre,
+                "coordenadas_jugador": {
+                    "latitud": jugador.latitud,
+                    "longitud": jugador.longitud
+                }
+            }
 
-        anuncios_cercanos = []
-        posicion_jugador = (jugador.latitud, jugador.longitud)
+            if not jugador.latitud or not jugador.longitud:
+                return Response({
+                    "error": "Tu perfil de jugador no tiene coordenadas registradas.",
+                    "debug_info": debug_info
+                }, status=400)
 
-        for anuncio in AnuncioEquipo.objects.all():
-            if anuncio.latitud_partido and anuncio.longitud_partido:
-                posicion_anuncio = (anuncio.latitud_partido, anuncio.longitud_partido)
-                distancia = haversine(posicion_jugador, posicion_anuncio, unit=Unit.KILOMETERS)
+            anuncios_cercanos = []
+            todos_los_anuncios = []
+            posicion_jugador = (jugador.latitud, jugador.longitud)
+            total_anuncios = AnuncioEquipo.objects.count()
+            anuncios_con_coordenadas = 0
 
-                if distancia <= distancia_max_km:
-                    anuncios_cercanos.append(anuncio)
+            for anuncio in AnuncioEquipo.objects.all():
+                if anuncio.latitud_partido and anuncio.longitud_partido:
+                    anuncios_con_coordenadas += 1
+                    posicion_anuncio = (anuncio.latitud_partido, anuncio.longitud_partido)
+                    
+                    # Calcular distancia usando haversine
+                    distancia = haversine(
+                        (float(jugador.latitud), float(jugador.longitud)),
+                        (float(anuncio.latitud_partido), float(anuncio.longitud_partido)),
+                        unit=Unit.KILOMETERS
+                    )
+                    
+                    anuncio_data = AnuncioEquipoSerializer(anuncio).data
+                    anuncio_data['distancia'] = round(distancia, 2)
+                    anuncio_data['posicion_jugador'] = posicion_jugador
+                    anuncio_data['posicion_anuncio'] = posicion_anuncio
+                    todos_los_anuncios.append(anuncio_data)
 
-        serializer = AnuncioEquipoSerializer(anuncios_cercanos, many=True)
-        return Response(serializer.data)
+                    # Solo añadir si está dentro del radio
+                    if distancia <= distancia_max_km:
+                        anuncios_cercanos.append(anuncio_data)
+
+            # Añadir información de depuración
+            debug_info.update({
+                "total_anuncios": total_anuncios,
+                "anuncios_con_coordenadas": anuncios_con_coordenadas,
+                "distancia_maxima_km": distancia_max_km,
+                "anuncios_cercanos_encontrados": len(anuncios_cercanos)
+            })
+
+            return Response({
+                "anuncios_cercanos": anuncios_cercanos,
+                "todos_los_anuncios": todos_los_anuncios,
+                "debug_info": debug_info
+            })
+
+        except Exception as e:
+            return Response({
+                "error": str(e),
+                "debug_info": debug_info if 'debug_info' in locals() else None
+            }, status=500)
