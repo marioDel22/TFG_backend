@@ -162,7 +162,10 @@ class ChatViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return Chat.objects.filter(models.Q(jugador__user=user) | models.Q(equipo__creador=user))
+        return Chat.objects.filter(
+            models.Q(jugador__user=user) |
+            models.Q(equipo__creador=user)
+        )
 
 
 class MensajeViewSet(viewsets.ModelViewSet):
@@ -171,12 +174,27 @@ class MensajeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return Mensaje.objects.filter(emisor=user)
+        chat_id = self.request.query_params.get('chat')
+        if chat_id:
+            # Solo permitir si el usuario es participante del chat
+            from .models import Chat
+            try:
+                chat = Chat.objects.get(id=chat_id)
+            except Chat.DoesNotExist:
+                return Mensaje.objects.none()
+            if chat.jugador.user != user and chat.equipo.creador != user:
+                return Mensaje.objects.none()
+            return Mensaje.objects.filter(chat=chat).order_by('timestamp')
+        return Mensaje.objects.filter(emisor=user).order_by('timestamp')
 
     def perform_create(self, serializer):
         chat = serializer.validated_data['chat']
         user = self.request.user
+        print(f"[DEBUG] Usuario autenticado: {user.username} (ID: {user.id})")
+        print(f"[DEBUG] Creador del equipo del chat: {chat.equipo.creador.username} (ID: {chat.equipo.creador.id})")
+        print(f"[DEBUG] Jugador del chat: {chat.jugador.user.username} (ID: {chat.jugador.user.id})")
         if chat.jugador.user != user and chat.equipo.creador != user:
+            print(f"[DEBUG] Permiso denegado para usuario {user.username}")
             raise PermissionDenied("No puedes escribir en este chat.")
         serializer.save(emisor=user)
 
@@ -193,12 +211,24 @@ class IniciarChatView(APIView):
         jugador = get_object_or_404(Jugador, id=jugador_id)
         equipo = get_object_or_404(Equipo, id=equipo_id)
 
-        # Comprobar permisos
-        if request.user != jugador.user and request.user != equipo.creador:
-            return Response({"error": "Solo el jugador o el creador del equipo pueden iniciar el chat."}, status=status.HTTP_403_FORBIDDEN)
+        print(f"[DEBUG] Usuario autenticado: {request.user} (ID: {request.user.id})")
+        print(f"[DEBUG] Equipo recibido: {equipo.id}, creador: {equipo.creador} (ID: {equipo.creador.id})")
 
         # Buscar si ya existe
         chat, created = Chat.objects.get_or_create(jugador=jugador, equipo=equipo)
+
+        # Vincular anuncios si existen y no están ya asignados
+        anuncio_jugador = getattr(jugador, 'anuncio', None)
+        anuncio_equipo = getattr(equipo, 'anuncio', None)
+        changed = False
+        if anuncio_jugador and chat.anuncio_jugador != anuncio_jugador:
+            chat.anuncio_jugador = anuncio_jugador
+            changed = True
+        if anuncio_equipo and chat.anuncio_equipo != anuncio_equipo:
+            chat.anuncio_equipo = anuncio_equipo
+            changed = True
+        if changed:
+            chat.save()
 
         return Response({
             "chat_id": chat.id,

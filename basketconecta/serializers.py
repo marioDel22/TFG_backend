@@ -119,6 +119,8 @@ class ChatSerializer(serializers.ModelSerializer):
     jugador_nombre = serializers.CharField(source='jugador.nombre', read_only=True)
     equipo_nombre = serializers.CharField(source='equipo.nombre', read_only=True)
     ultimo_mensaje = serializers.SerializerMethodField()
+    anuncio_jugador = serializers.PrimaryKeyRelatedField(read_only=True)
+    anuncio_equipo = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = Chat
@@ -126,6 +128,7 @@ class ChatSerializer(serializers.ModelSerializer):
             'id',
             'jugador', 'jugador_nombre',
             'equipo', 'equipo_nombre',
+            'anuncio_jugador', 'anuncio_equipo',
             'creado',
             'ultimo_mensaje'
         ]

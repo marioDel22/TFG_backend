@@ -177,10 +177,12 @@ class AnuncioEquipo(models.Model):
 class Chat(models.Model):
     jugador = models.ForeignKey(Jugador, on_delete=models.CASCADE, related_name='chats')
     equipo = models.ForeignKey(Equipo, on_delete=models.CASCADE, related_name='chats')
+    anuncio_jugador = models.ForeignKey('AnuncioJugador', on_delete=models.SET_NULL, null=True, blank=True, related_name='chats_jugador')
+    anuncio_equipo = models.ForeignKey('AnuncioEquipo', on_delete=models.SET_NULL, null=True, blank=True, related_name='chats_equipo')
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('jugador', 'equipo')  # Un único chat por par jugador-equipo
+        unique_together = ('jugador', 'equipo', 'anuncio_jugador', 'anuncio_equipo')
 
     def __str__(self):
         return f"Chat entre {self.equipo.nombre} y {self.jugador.nombre}"
