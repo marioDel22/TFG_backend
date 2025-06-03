@@ -450,3 +450,11 @@ class AnunciosCercanosView(APIView):
                 "error": str(e),
                 "debug_info": debug_info if 'debug_info' in locals() else None
             }, status=500)
+
+class MisEquiposCreadosView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        equipos = Equipo.objects.filter(creador=request.user)
+        serializer = EquipoSerializer(equipos, many=True)
+        return Response(serializer.data)
