@@ -162,10 +162,14 @@ class ChatViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return Chat.objects.filter(
+        queryset = Chat.objects.filter(
             models.Q(jugador__user=user) |
             models.Q(equipo__creador=user)
         )
+        anuncio_equipo_id = self.request.query_params.get('anuncio_equipo')
+        if anuncio_equipo_id:
+            queryset = queryset.filter(anuncio_equipo_id=anuncio_equipo_id)
+        return queryset
 
 
 class MensajeViewSet(viewsets.ModelViewSet):
