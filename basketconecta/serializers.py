@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Jugador, Equipo, AnuncioJugador, AnuncioEquipo, Chat, Mensaje, Invitacion, EventoCalendario, Notificacion, geocodificar_direccion
+from .models import Jugador, Equipo, AnuncioJugador, AnuncioEquipo, Chat, Mensaje, Invitacion, EventoCalendario, Notificacion, geocodificar_direccion, ChatEquipo, MensajeChatEquipo
 
 
 class JugadorMiniSerializer(serializers.ModelSerializer):
@@ -179,3 +179,16 @@ class NotificacionSerializer(serializers.ModelSerializer):
         model = Notificacion
         fields = ['id', 'mensaje', 'leida', 'creada']
         read_only_fields = ['id', 'mensaje', 'creada']
+
+class ChatEquipoSerializer(serializers.ModelSerializer):
+    equipo_nombre = serializers.CharField(source='equipo.nombre', read_only=True)
+    class Meta:
+        model = ChatEquipo
+        fields = ['id', 'equipo', 'equipo_nombre', 'creado']
+
+class MensajeChatEquipoSerializer(serializers.ModelSerializer):
+    emisor_username = serializers.CharField(source='emisor.username', read_only=True)
+    class Meta:
+        model = MensajeChatEquipo
+        fields = ['id', 'chat', 'emisor', 'emisor_username', 'contenido', 'timestamp']
+        read_only_fields = ['id', 'timestamp', 'emisor', 'emisor_username']

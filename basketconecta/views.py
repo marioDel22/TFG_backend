@@ -13,9 +13,9 @@ from django.shortcuts import get_object_or_404
 from .models import Jugador
 from .models import AnuncioEquipo
 from .models import AnuncioJugador
-from .models import Equipo, Chat, Mensaje, Invitacion, EventoCalendario, Notificacion
+from .models import Equipo, Chat, Mensaje, Invitacion, EventoCalendario, Notificacion, ChatEquipo, MensajeChatEquipo
 from .serializers import JugadorSerializer
-from .serializers import EquipoSerializer, AnuncioEquipoSerializer, AnuncioJugadorSerializer, ChatSerializer, MensajeSerializer, InvitacionSerializer, EventoCalendarioSerializer, NotificacionSerializer   
+from .serializers import EquipoSerializer, AnuncioEquipoSerializer, AnuncioJugadorSerializer, ChatSerializer, MensajeSerializer, InvitacionSerializer, EventoCalendarioSerializer, NotificacionSerializer, ChatEquipoSerializer, MensajeChatEquipoSerializer   
 
 
 
@@ -438,3 +438,38 @@ class MisEquiposCreadosView(APIView):
         equipos = Equipo.objects.filter(creador=request.user)
         serializer = EquipoSerializer(equipos, many=True)
         return Response(serializer.data)
+
+class ChatEquipoViewSet(viewsets.ModelViewSet):
+    serializer_class = ChatEquipoSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = ChatEquipo.objects.all()
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        equipo_id = self.request.query_params.get('equipo')
+        if equipo_id:
+            queryset = queryset.filter(equipo_id=equipo_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        # Solo crear si no existe ya un chat grupal para el equipo
+        equipo = serializer.validated_data['equipo']
+        if ChatEquipo.objects.filter(equipo=equipo).exists():
+            raise serializers.ValidationError('Ya existe un chat grupal para este equipo.')
+        serializer.save()
+
+class MensajeChatEquipoViewSet(viewsets.ModelViewSet):
+    serializer_class = MensajeChatEquipoSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = MensajeChatEquipo.objects.all().order_by('timestamp')
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        chat_id = self.request.query_params.get('chat')
+        if chat_id:
+            queryset = queryset.filter(chat_id=chat_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        serializer.save(emisor=user)

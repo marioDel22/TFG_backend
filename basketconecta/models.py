@@ -246,3 +246,19 @@ class Notificacion(models.Model):
 
     def __str__(self):
         return f"Notificación para {self.usuario.username}: {self.mensaje[:50]}"
+
+class ChatEquipo(models.Model):
+    equipo = models.OneToOneField(Equipo, on_delete=models.CASCADE, related_name='chat_grupal')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Chat grupal de {self.equipo.nombre}"
+
+class MensajeChatEquipo(models.Model):
+    chat = models.ForeignKey(ChatEquipo, on_delete=models.CASCADE, related_name='mensajes')
+    emisor = models.ForeignKey(User, on_delete=models.CASCADE)
+    contenido = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Mensaje de {self.emisor.username} en {self.chat.equipo.nombre}"
