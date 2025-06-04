@@ -246,9 +246,16 @@ class InvitacionViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return Invitacion.objects.filter(
+        queryset = Invitacion.objects.filter(
             models.Q(equipo__creador=user) | models.Q(jugador__user=user)
         )
+        equipo_id = self.request.query_params.get('equipo')
+        jugador_id = self.request.query_params.get('jugador')
+        if equipo_id:
+            queryset = queryset.filter(equipo_id=equipo_id)
+        if jugador_id:
+            queryset = queryset.filter(jugador_id=jugador_id)
+        return queryset
 
     def perform_create(self, serializer):
         equipo = serializer.validated_data['equipo']
@@ -257,44 +264,13 @@ class InvitacionViewSet(viewsets.ModelViewSet):
         if equipo.creador != self.request.user:
             raise serializers.ValidationError("No puedes enviar invitaciones con equipos que no te pertenecen.")
 
-        if Invitacion.objects.filter(equipo=equipo, jugador=jugador).exists():
-            raise serializers.ValidationError("Ya existe una invitación para este jugador.")
-
-        serializer.save()
-
-    def perform_update(self, serializer):
-        invitacion = self.get_object()
-        user = self.request.user
-
-        if invitacion.jugador.user != user:
-            raise serializers.ValidationError("Solo el jugador invitado puede aceptar o rechazar esta invitación.")
-
-        nueva_estado = self.request.data.get('estado')
-
-        if nueva_estado == 'aceptada':
-            equipo = invitacion.equipo
-            jugador = invitacion.jugador
-
-            if jugador in equipo.jugadores.all():
-                raise serializers.ValidationError("El jugador ya pertenece al equipo.")
-
-            equipo.jugadores.add(jugador)
-
-        serializer.save()
-
-    def perform_create(self, serializer):
-        equipo = serializer.validated_data['equipo']
-        jugador = serializer.validated_data['jugador']
-
-        if equipo.creador != self.request.user:
-            raise serializers.ValidationError("No puedes enviar invitaciones con equipos que no te pertenecen.")
-
-        if Invitacion.objects.filter(equipo=equipo, jugador=jugador).exists():
-            raise serializers.ValidationError("Ya existe una invitación para este jugador.")
+        # Solo permitir crear si NO existe una invitación pendiente o aceptada
+        if Invitacion.objects.filter(equipo=equipo, jugador=jugador, estado__in=['pendiente', 'aceptada']).exists():
+            raise serializers.ValidationError("Ya existe una invitación pendiente o aceptada para este jugador y equipo.")
 
         invitacion = serializer.save()
 
-    # Crear notificación para el jugador
+        # Crear notificación para el jugador
         Notificacion.objects.create(
             usuario=jugador.user,
             mensaje=f"Has recibido una invitación del equipo {equipo.nombre}"

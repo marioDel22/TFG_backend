@@ -211,9 +211,6 @@ class Invitacion(models.Model):
     mensaje = models.TextField(blank=True)
     enviada = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        unique_together = ('equipo', 'jugador')  # no se puede invitar dos veces al mismo jugador
-
     def __str__(self):
         return f"{self.equipo.nombre} invita a {self.jugador.nombre} ({self.estado})"
     
