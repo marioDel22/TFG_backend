@@ -262,3 +262,20 @@ class MensajeChatEquipo(models.Model):
 
     def __str__(self):
         return f"Mensaje de {self.emisor.username} en {self.chat.equipo.nombre}"
+
+class Reporte(models.Model):
+    ESTADOS = [
+        ('pendiente', 'Pendiente'),
+        ('revisado', 'Revisado'),
+        ('resuelto', 'Resuelto'),
+        ('descartado', 'Descartado'),
+    ]
+    reportado = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reportes_recibidos')
+    reportante = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reportes_realizados')
+    motivo = models.CharField(max_length=255)
+    descripcion = models.TextField(blank=True)
+    estado = models.CharField(max_length=20, choices=ESTADOS, default='pendiente')
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Reporte sobre {self.reportado.username} por {self.reportante.username} ({self.estado})"

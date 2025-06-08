@@ -1,6 +1,6 @@
 from rest_framework.routers import DefaultRouter
 from django.urls import path
-from .views import JugadorViewSet, EquipoViewSet, AnuncioEquipoViewSet, AnuncioJugadorViewSet,  ChatViewSet, MensajeViewSet, ChatEquipoViewSet, MensajeChatEquipoViewSet, IniciarChatView, InvitacionViewSet, MisEquiposView, InvitacionesPendientesView, EventoCalendarioViewSet, CalendarioEquipoView,NotificacionViewSet, AnunciosCercanosView, MisEquiposCreadosView  
+from .views import JugadorViewSet, EquipoViewSet, AnuncioEquipoViewSet, AnuncioJugadorViewSet,  ChatViewSet, MensajeViewSet, ChatEquipoViewSet, MensajeChatEquipoViewSet, IniciarChatView, InvitacionViewSet, MisEquiposView, InvitacionesPendientesView, EventoCalendarioViewSet, CalendarioEquipoView,NotificacionViewSet, AnunciosCercanosView, MisEquiposCreadosView, PasswordResetView, EliminarUsuarioView, ReporteViewSet
 
 router = DefaultRouter()
 router.register(r'jugadores', JugadorViewSet, basename='jugador')
@@ -14,6 +14,7 @@ router.register(r'mensajes-chat-equipo', MensajeChatEquipoViewSet, basename='men
 router.register(r'invitaciones', InvitacionViewSet, basename='invitacion')
 router.register(r'eventos-calendario', EventoCalendarioViewSet, basename='evento-calendario')
 router.register(r'notificaciones', NotificacionViewSet, basename='notificacion')
+router.register(r'reportes', ReporteViewSet, basename='reporte')
 
 urlpatterns = router.urls
 
@@ -39,4 +40,12 @@ urlpatterns += [
 
 urlpatterns += [
     path('mis-equipos-creados/', MisEquiposCreadosView.as_view(), name='mis-equipos-creados'),
+]
+
+urlpatterns += [
+    path('password-reset/', PasswordResetView.as_view(), name='password-reset'),
+]
+
+urlpatterns += [
+    path('eliminar-usuario/', EliminarUsuarioView.as_view(), name='eliminar-usuario'),
 ]

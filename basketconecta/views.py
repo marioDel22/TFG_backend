@@ -14,8 +14,13 @@ from .models import Jugador
 from .models import AnuncioEquipo
 from .models import AnuncioJugador
 from .models import Equipo, Chat, Mensaje, Invitacion, EventoCalendario, Notificacion, ChatEquipo, MensajeChatEquipo
+from .models import Reporte
 from .serializers import JugadorSerializer
-from .serializers import EquipoSerializer, AnuncioEquipoSerializer, AnuncioJugadorSerializer, ChatSerializer, MensajeSerializer, InvitacionSerializer, EventoCalendarioSerializer, NotificacionSerializer, ChatEquipoSerializer, MensajeChatEquipoSerializer   
+from .serializers import EquipoSerializer, AnuncioEquipoSerializer, AnuncioJugadorSerializer, ChatSerializer, MensajeSerializer, InvitacionSerializer, EventoCalendarioSerializer, NotificacionSerializer, ChatEquipoSerializer, MensajeChatEquipoSerializer, ReporteSerializer   
+from django.core.mail import send_mail
+import random
+import string
+from django.contrib.auth.models import User
 
 
 
@@ -473,3 +478,71 @@ class MensajeChatEquipoViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         serializer.save(emisor=user)
+
+class PasswordResetView(APIView):
+    def post(self, request):
+        email = request.data.get('email')
+        if not email:
+            return Response({'error': 'Email requerido.'}, status=status.HTTP_400_BAD_REQUEST)
+        from django.contrib.auth.models import User
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({'error': 'No existe usuario con ese email.'}, status=status.HTTP_404_NOT_FOUND)
+        temp_password = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+        user.set_password(temp_password)
+        user.save()
+        send_mail(
+            'Recuperación de contraseña - BasketConecta',
+            f'Tu nueva contraseña temporal es: {temp_password}\nPor favor, cámbiala después de iniciar sesión.',
+            None,
+            [email],
+            fail_silently=False,
+        )
+        return Response({'message': 'Se ha enviado una nueva contraseña temporal a tu correo.'})
+
+class EliminarUsuarioView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        user = request.user
+        # Eliminar jugador asociado (si existe)
+        try:
+            if hasattr(user, 'jugador'):
+                user.jugador.delete()
+        except Exception:
+            pass
+        # Eliminar equipos creados por el usuario
+        from .models import Equipo
+        equipos = Equipo.objects.filter(creador=user)
+        for equipo in equipos:
+            equipo.delete()
+        # Eliminar el usuario
+        user.delete()
+        return Response({'message': 'Usuario y datos relacionados eliminados correctamente.'}, status=200)
+
+class EsAdminOReportante(permissions.BasePermission):
+    def has_permission(self, request, view):
+        # Permitir a admin ver todos, a usuarios crear
+        if view.action in ['list', 'retrieve', 'update', 'partial_update', 'destroy']:
+            return request.user.is_staff
+        return request.user.is_authenticated
+    def has_object_permission(self, request, view, obj):
+        # Solo admin puede modificar, el reportante puede ver su propio reporte
+        if request.user.is_staff:
+            return True
+        return obj.reportante == request.user
+
+class ReporteViewSet(viewsets.ModelViewSet):
+    queryset = Reporte.objects.all().order_by('-fecha_creacion')
+    serializer_class = ReporteSerializer
+    permission_classes = [EsAdminOReportante]
+
+    def perform_create(self, serializer):
+        serializer.save(reportante=self.request.user)
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return Reporte.objects.all().order_by('-fecha_creacion')
+        return Reporte.objects.filter(reportante=user).order_by('-fecha_creacion')
